@@ -250,6 +250,8 @@ Resources:
                 sudo yum install -y docker
                 sudo service docker start
                 sudo usermod -a -G docker ec2-user
+                sudo curl -Ls "https://github.com/docker/compose/releases/download/1.23.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
               mode: "000755"
             /package/wordpress.zip:
               source: !Ref dockerPackageName
@@ -263,6 +265,9 @@ Resources:
               waitAfterCompletion: '0'
             030-run-docker-install:
               command: "echo \"$(date) - 030-run-docker-install\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/docker-install.sh"
+              waitAfterCompletion: '0'
+            040-unpack-package:
+              command: "echo \"$(date) - 040-unpack-package\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo unzip -o /package/wordpress.zip -d /stage/"
               waitAfterCompletion: '0'
             999-signal-complete:
               command: !Join
