@@ -1,0 +1,288 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: byocm vpc template
+
+Parameters:
+  stackName:
+    Description: Name of the stack to distinguish it from other stacks
+    Type: String
+    Default: byocm-vpc
+
+Mappings:
+  SubnetConfig:
+    cidr:
+      vpc: "10.0.0.0/16"
+      publicSubnet1: "10.0.1.0/24"
+      publicSubnet2: "10.0.2.0/24"
+      privateSubnet1: "10.0.255.0/24"
+      privateSubnet2: "10.0.254.0/24"
+
+Resources:
+  vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [SubnetConfig, cidr, vpc]
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: !Ref stackName
+
+  publicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc
+      CidrBlock: !FindInMap [SubnetConfig, cidr, publicSubnet1]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+          Ref: "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "publicSubnet1" ]]
+
+  publicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc
+      CidrBlock: !FindInMap [SubnetConfig, cidr, publicSubnet2]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs
+          Ref: "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "publicSubnet2" ]]
+
+  privateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc
+      CidrBlock: !FindInMap [SubnetConfig, cidr, privateSubnet1]
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+          Ref: "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "privateSubnet1" ]]
+
+  privateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: vpc
+      CidrBlock: !FindInMap [SubnetConfig, cidr, privateSubnet2]
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs
+          Ref: "AWS::Region"
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "privateSubnet2" ]]
+
+  internetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "internetGateway" ]]
+
+  gatewayToInternet:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: vpc
+      InternetGatewayId:
+        Ref: internetGateway
+
+  routeTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: vpc
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "routeTable" ]]
+
+  defaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: gatewayToInternet
+    Properties:
+      RouteTableId:
+        Ref: routeTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId:
+        Ref: internetGateway
+
+  privateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: vpc
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "privateRouteTable" ]]
+
+  privateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref privateRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref natGateway
+    DependsOn: natGateway
+
+  natGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt [ natEip, AllocationId ]
+      SubnetId: !Ref publicSubnet1
+    DependsOn: natEip
+
+  natEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  publicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: publicSubnet1
+      RouteTableId:
+        Ref: routeTable
+
+  publicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: publicSubnet2
+      RouteTableId:
+        Ref: routeTable
+
+  privateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: privateSubnet1
+      RouteTableId:
+        Ref: privateRouteTable
+
+  privateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: privateSubnet2
+      RouteTableId:
+        Ref: privateRouteTable
+
+  internalTrafficSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internal traffic rules
+      VpcId:
+        Ref: vpc
+      SecurityGroupIngress:
+        IpProtocol: -1
+        CidrIp: !FindInMap [SubnetConfig, cidr, vpc]
+      SecurityGroupEgress:
+        IpProtocol: -1
+        CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "internalTrafficSecurityGroup" ]]
+
+  webTrafficSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web Traffic Rules
+      VpcId:
+        Ref: vpc
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        ToPort: "80"
+        FromPort: "80"
+        CidrIp: 0.0.0.0/0
+
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "webTrafficSecurityGroup" ]]
+
+  externalSshSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: External SSH Traffic Rules
+      VpcId:
+        Ref: vpc
+      SecurityGroupIngress:
+
+        # My House
+      - IpProtocol: tcp
+        ToPort: "22"
+        FromPort: "22"
+        CidrIp: 82.25.28.5/32
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "externalSshSecurityGroup" ]]
+
+Outputs:
+  vpc:
+    Description: VPC ID
+    Value:
+      Ref: vpc
+    Export:
+      Name: !Ref stackName
+
+  publicSubnet1:
+    Description: Subnet ID of publicSubnet1
+    Value:
+      Ref: publicSubnet1
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "public-subnet1" ]]
+
+  publicSubnet2:
+    Description: Subnet ID of publicSubnet2
+    Value:
+      Ref: publicSubnet2
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "public-subnet2" ]]
+
+  privateSubnet1:
+    Description: Subnet ID of privateSubnet1
+    Value:
+      Ref: privateSubnet1
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "private-subnet1" ]]
+
+  privateSubnet2:
+    Description: Subnet ID of privateSubnet2
+    Value:
+      Ref: privateSubnet2
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "private-subnet2" ]]
+
+  internalTrafficSecurityGroup:
+    Description: ID for the internal traffic security group
+    Value:
+      Ref: internalTrafficSecurityGroup
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "internaltraffic-securitygroup" ]]
+
+  webTrafficSecurityGroup:
+    Description: ID for the web traffic security group
+    Value:
+      Ref: webTrafficSecurityGroup
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "webtraffic-securitygroup" ]]
+
+  externalSshSecurityGroup:
+    Description: ID for the external ssh traffic security group
+    Value:
+      Ref: externalSshSecurityGroup
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "externalssh-securitygroup" ]]
