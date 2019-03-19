@@ -27,6 +27,15 @@ Parameters:
     Description: AMI for the ec2 instance
     Type: String
 
+  s3PackageBucket:
+    Description: S3 Bucket for docker package
+    Type: String
+    Default: 278942993584-eddy-scratch
+
+  dockerPackageName:
+    Description: S3 Key for docker package
+    Type: String
+
 Resources:
   ec2VMUpdateWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
@@ -198,6 +207,12 @@ Resources:
   autoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Metadata:
+      AWS::CloudFormation::Authentication:
+        s3AccessCreds:
+          type: S3
+          roleName: !Ref ssmRole
+          buckets:
+            - !Ref s3PackageBucket
       AWS::CloudFormation::Init:
         config:
           files:
@@ -236,6 +251,9 @@ Resources:
                 sudo service docker start
                 sudo usermod -a -G docker ec2-user
               mode: "000755"
+            /package/wordpress.zip:
+              source: !Ref dockerPackageName
+              authentication: s3AccessCreds
           commands:
             010-script-start:
               command: "echo \"$(date) - 010-script-start\" | sudo tee --append /home/ec2-user/cfn-init.log"
