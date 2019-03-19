@@ -1,0 +1,303 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Docker ASG
+
+Parameters:
+  keyName:
+    Description: Key pair to use for instances
+    Type: String
+    Default: eddy.snow@intapp-devopssbx
+
+  vpcStackName:
+    Description: Name of the vpc stack in which to deploy the cluster
+    Type: String
+    Default: byocm-vpc
+
+  stackName:
+    Description: Name of the stack to distinguish it from other stacks
+    Type: String
+    Default: byocm-docker
+
+  instanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t3.medium
+
+  ec2Image:
+    Description: AMI for the ec2 instance
+    Type: String
+
+Resources:
+  ec2VMUpdateWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+
+  eC2VMUpdateWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: autoScalingGroup
+    Properties:
+      Handle: !Ref ec2VMUpdateWaitHandle
+      Timeout: '600'
+
+############################ Load Balancer ######################################
+  loadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      IpAddressType: ipv4
+      Name: !Join [ "-", [ !Ref stackName, "alb" ]]
+      Scheme: internet-facing
+      Subnets:
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "public-subnet1" ]]
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "public-subnet2" ]]
+      SecurityGroups:
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "webtraffic-securitygroup" ]]
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "alb" ]]
+        - Key: ProductComponents
+          Value: alb
+
+############################ Target Group ######################################
+  loadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /index.html
+      HealthCheckPort: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 2
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Name: !Join [ "-", [ !Ref stackName, "tgt", "grp" ]]
+      Port: 80
+      Protocol: HTTP
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "tgt", "grp" ]]
+        - Key: ProductComponents
+          Value: targetgroup
+      TargetType: instance
+      VpcId:
+        Fn::ImportValue: !Ref vpcStackName
+
+############################ ALB Listener ######################################
+  loadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref loadBalancerTargetGroup
+      LoadBalancerArn: !Ref loadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  ssmInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ssmRole
+
+  ssmRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:DescribeAssociation'
+                  - 'ssm:GetDeployablePatchSnapshotForInstance'
+                  - 'ssm:GetDocument'
+                  - 'ssm:GetParameters'
+                  - 'ssm:ListAssociations'
+                  - 'ssm:ListInstanceAssociations'
+                  - 'ssm:PutInventory'
+                  - 'ssm:UpdateAssociationStatus'
+                  - 'ssm:UpdateInstanceAssociationStatus'
+                  - 'ssm:UpdateInstanceInformation'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ec2messages:AcknowledgeMessage'
+                  - 'ec2messages:DeleteMessage'
+                  - 'ec2messages:FailMessage'
+                  - 'ec2messages:GetEndpoint'
+                  - 'ec2messages:GetMessages'
+                  - 'ec2messages:SendReply'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricData'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ec2:DescribeInstanceStatus'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ds:CreateComputer'
+                  - 'ds:DescribeDirectories'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:Get*'
+                  - 's3:List*'
+                  - 's3:AbortMultipartUpload'
+                  - 's3:ListMultipartUploadParts'
+                  - 's3:ListBucketMultipartUploads'
+                Resource: '*'
+
+  autoScalingLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref ec2Image
+      IamInstanceProfile: !Ref ssmInstanceProfile
+      InstanceType: !Ref instanceType
+      KeyName: !Ref keyName
+      SecurityGroups:
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "internaltraffic-securitygroup" ]]
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "webtraffic-securitygroup" ]]
+      UserData: !Base64
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -xe
+            - |
+              # run init scripts
+            - '/opt/aws/bin/cfn-init -v '
+            - '         --stack '
+            - !Ref 'AWS::StackId'
+            - '         --resource autoScalingGroup '
+            - '         --region '
+            - !Ref 'AWS::Region'
+            - |+
+
+  autoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.autoScalingGroup.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource autoScalingGroup --region ${AWS::Region}
+                runas=root
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackName}
+                region=${AWS::Region}
+                interval=1
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            /usr/local/bin/init-update.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                sudo yum install –y epel-release
+                sudo yum clean all
+                sudo yum -y update
+              mode: "000755"
+            /usr/local/bin/docker-install.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                sudo yum install -y docker
+                sudo service docker start
+                sudo usermod -a -G docker ec2-user
+              mode: "000755"
+          commands:
+            010-script-start:
+              command: "echo \"$(date) - 010-script-start\" | sudo tee --append /home/ec2-user/cfn-init.log"
+              waitAfterCompletion: '0'
+            020-run-updates:
+              command: "echo \"$(date) - 020-run-updates\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/init-update.sh"
+              waitAfterCompletion: '0'
+            030-run-docker-install:
+              command: "echo \"$(date) - 030-run-docker-install\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/docker-install.sh"
+              waitAfterCompletion: '0'
+            999-signal-complete:
+              command: !Join
+                - ''
+                - - '/opt/aws/bin/cfn-signal -e $? -r "call to 999-signal-complete" '
+                  - !Base64
+                    Ref: ec2VMUpdateWaitHandle
+              ignoreErrors: true
+              waitAfterCompletion: 0
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      AvailabilityZones:
+        - !Select
+          - '0'
+          - !GetAZs ''
+        - !Select
+          - '1'
+          - !GetAZs ''
+      VPCZoneIdentifier:
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "private-subnet1" ]]
+        - Fn::ImportValue: !Join [ "-", [ !Ref vpcStackName, "private-subnet2" ]]
+      LaunchConfigurationName: !Ref autoScalingLaunchConfig
+      MinSize: 1
+      MaxSize: 2
+      TargetGroupARNs:
+        - !Ref loadBalancerTargetGroup
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "asg" ]]
+          PropagateAtLaunch: 'true'
+
+  scalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      PolicyType: SimpleScaling
+      Cooldown: '60'
+      AutoScalingGroupName: !Ref autoScalingGroup
+      ScalingAdjustment: 1
+
+Outputs:
+  loadBalancerCname:
+    Description: CNAME for ALB
+    Value:
+      Fn::GetAtt: [ loadBalancer, DNSName ]
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "loadBalancerCname" ]]
+
+
