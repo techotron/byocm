@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: byocm iam resources
+
+Parameters:
+  stackName:
+    Description: Name of the stack to distinguish it from other stacks
+    Type: String
+    Default: byocm-iam
+
+  promUsername:
+    Description: Username for the prometheus account
+    Type: String
+    Default: byocm-user-prom
+
+Resources:
+  PromIamUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Join [ "", [ !Ref stackName, ".", !Ref promUsername, "@", !Ref "AWS::Region" ]]
+      Groups: [!Ref PromIamGroup]
+
+  PromIamAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref PromIamUser
+
+  PromIamPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join [ "", [ "prom.policy@", !Ref "AWS::Region" ]]
+      Groups:
+        - !Ref PromIamGroup
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - 'ec2:Get*'
+              - 'ec2:Describe*'
+            Resource: "*"
+
+  PromIamGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Join [ "", [ "prom.group@", !Ref "AWS::Region" ]]
+
+Outputs:
+  PromIamAccessKey:
+    Description: Access key for the prometheus user
+    Value: !Ref PromIamAccessKey
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "PromIamAccessKey" ]]
+
+  PromIamSecretKey:
+    Description: Secret key for the prometheus user
+    Value: !GetAtt PromIamAccessKey.SecretAccessKey
+    Export:
+      Name: !Join [ "-", [ !Ref stackName, "PromIamSecretKey" ]]
+
+
