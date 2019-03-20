@@ -1,0 +1,42 @@
+version: '3'
+services:
+  nginx:
+    build: ./wordpress/nginx
+    ports:
+      - 80:80
+    restart: always
+    depends_on:
+      - wordpress
+  wordpress:
+    build: ./wordpress/wordpress
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: mysqldb
+      WORDPRESS_DB_USER: byocmuser
+      WORDPRESS_DB_PASSWORD: byocmpass
+      WORDPRESS_DB_NAME: byocmdb
+    depends_on:
+      - mysqldb
+  mysqldb:
+    build: ./wordpress/mysqldb
+    restart: always
+    environment:
+      MYSQL_DATABASE: byocmdb
+      MYSQL_USER: byocmuser
+      MYSQL_PASSWORD: byocmpass
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+  grafana:
+    build: ./metrics/grafana
+    ports:
+      - 8080:3000
+    depends_on:
+      - prometheus
+    restart: always
+  prometheus:
+    build: ./metrics/prometheus
+    ports:
+      - 9090:9090
+    restart: always
+    environment:
+      AWS_ACCESS_KEY_ID: ${PROM_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${PROM_SECRET_KEY}
