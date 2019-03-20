@@ -54,7 +54,7 @@ Resources:
     DependsOn: autoScalingGroup
     Properties:
       Handle: !Ref ec2VMUpdateWaitHandle
-      Timeout: '600'
+      Timeout: '6000'
 
 ############################ Load Balancer ######################################
   loadBalancer:
@@ -340,13 +340,42 @@ Resources:
             /usr/local/bin/build-solution.sh:
               content: !Sub |
                 #!/bin/bash
-                sudo docker-compose -f /stage/docker-compose.yml stop
-                sudo docker-compose -f /stage/docker-compose.yml build
-                sudo docker-compose -f /stage/docker-compose.yml up -d
+                sudo -E docker-compose -f /stage/docker-compose.yml stop
+                sudo -E docker-compose -f /stage/docker-compose.yml build
+                sudo -E docker-compose -f /stage/docker-compose.yml up -d
               mode: "000755"
             /package/wordpress.zip:
               source: !Ref dockerPackageName
               authentication: s3AccessCreds
+            /etc/systemd/system/node_exporter.service:
+              content: !Sub |
+                [Unit]
+                Description=Node Exporter
+                Wants=network-online.target
+                After=network-online.target
+
+                [Service]
+                User=root
+                ExecStart=/prometheus/node_exporter/node_exporter
+
+                [Install]
+                WantedBy=default.target
+              mode: "000664"
+            /prometheus/node_exporter.tar.gz:
+              source: https://github.com/prometheus/node_exporter/releases/download/v0.17.0/node_exporter-0.17.0.linux-amd64.tar.gz
+            /usr/local/bin/install-exporter.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                echo "$(date) - 050.1-extracting the node exporter archive" | sudo tee --append /home/ec2-user/cfn-init.log
+                tar -xzvf /prometheus/node_exporter.tar.gz
+                mv node_exporter-0.17.0.linux-amd64 node_exporter
+
+                echo "$(date) - 050.2-enabling node exporter as a service and starting it" | sudo tee --append /home/ec2-user/cfn-init.log
+                sudo systemctl daemon-reload
+                sudo systemctl start node_exporter
+                sudo systemctl enable node_exporter
+              mode: "000755"
           commands:
             010-script-start:
               command: "echo \"$(date) - 010-script-start\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo service cfn-hup start"
@@ -362,6 +391,9 @@ Resources:
               env:
                 PROM_ACCESS_KEY: !Ref promKey
                 PROM_SECRET_KEY: !Ref promSecret
+            050-install-prometheus-exporter:
+              command: "echo \"$(date) - 050-install-prometheus-exporter\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo /usr/local/bin/install-exporter.sh"
+              cwd: /prometheus
             999-signal-complete:
               command: !Join
                 - ''
