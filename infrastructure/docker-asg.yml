@@ -222,7 +222,7 @@ Resources:
             /etc/cfn/hooks.d/cfn-auto-reloader.conf:
               content: !Sub |
                 [cfn-auto-reloader-hook]
-                triggers=post.update
+                triggers=post.update, post.remove, post.add
                 path=Resources.autoScalingGroup.Metadata.AWS::CloudFormation::Init
                 action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource autoScalingGroup --region ${AWS::Region}
                 runas=root
@@ -278,20 +278,16 @@ Resources:
               authentication: s3AccessCreds
           commands:
             010-script-start:
-              command: "echo \"$(date) - 010-script-start\" | sudo tee --append /home/ec2-user/cfn-init.log"
-              waitAfterCompletion: '0'
+              command: "echo \"$(date) - 010-script-start\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo service cfn-hup start"
             020-run-updates:
               command: "echo \"$(date) - 020-run-updates\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/init-update.sh"
-              waitAfterCompletion: '0'
             030-run-docker-install:
               command: "echo \"$(date) - 030-run-docker-install\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/docker-install.sh"
-              waitAfterCompletion: '0'
             040-unpack-package:
               command: "echo \"$(date) - 040-unpack-package\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo unzip -o /package/wordpress.zip -d /stage/"
-              waitAfterCompletion: '0'
             041-build-solution:
               command: "echo \"$(date) - 041-build-solution\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/build-solution.sh"
-              waitAfterCompletion: '0'
+              ignoreErrors: true
             999-signal-complete:
               command: !Join
                 - ''
@@ -299,7 +295,6 @@ Resources:
                   - !Base64
                     Ref: ec2VMUpdateWaitHandle
               ignoreErrors: true
-              waitAfterCompletion: 0
           services:
             sysvinit:
               cfn-hup:
