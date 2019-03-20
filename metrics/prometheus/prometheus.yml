@@ -1,0 +1,16 @@
+global:
+  scrape_interval:     15s
+
+scrape_configs:
+  - job_name: 'node'
+    ec2_sd_configs:
+      - region: eu-west-1
+        port: 9100
+    relabel_configs:
+        # Only monitor instances with a Name starting with "byocm"
+      - source_labels: [__meta_ec2_tag_Name]
+        regex: byocm.*
+        action: keep
+        # Use the instance ID as the instance label
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance
