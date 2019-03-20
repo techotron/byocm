@@ -247,17 +247,26 @@ Resources:
               content: !Sub |
                 #!/bin/bash
 
-                sudo yum install -y docker
-                sudo service docker start
-                sudo usermod -a -G docker ec2-user
-                sudo curl -Ls "https://github.com/docker/compose/releases/download/1.23.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+                if [ -x "$(command -v docker)" ]; then
+                  echo "docker already installed"
+                else
+                  sudo yum install -y docker
+                  sudo service docker start
+                  sudo usermod -a -G docker ec2-user
+                fi
+
+                if [ -x "$(command -v docker-compose)" ]; then
+                  echo "docker-compose already installed"
+                else
+                  sudo curl -Ls "https://github.com/docker/compose/releases/download/1.23.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                  sudo chmod +x /usr/local/bin/docker-compose
+                  sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+                fi
               mode: "000755"
             /usr/local/bin/build-solution.sh:
               content: !Sub |
                 #!/bin/bash
-
+                sudo docker-compose -f /stage/wordpress/docker-compose.yml stop
                 sudo docker-compose -f /stage/wordpress/docker-compose.yml build
                 sudo docker-compose -f /stage/wordpress/docker-compose.yml up
               mode: "000755"
