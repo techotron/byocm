@@ -5,6 +5,23 @@ services:
     ports:
       - 80:80
     restart: always
+    depends_on:
+      - wordpress
   wordpress:
     build: ./wordpress
     restart: always
+    environment:
+      WORDPRESS_DB_HOST: mysqldb
+      WORDPRESS_DB_USER: byocmuser
+      WORDPRESS_DB_PASSWORD: byocmpass
+      WORDPRESS_DB_NAME: byocmdb
+    depends_on:
+      - mysqldb
+  mysqldb:
+    build: ./mysqldb
+    restart: always
+    environment:
+      MYSQL_DATABASE: byocmdb
+      MYSQL_USER: byocmuser
+      MYSQL_PASSWORD: byocmpass
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
