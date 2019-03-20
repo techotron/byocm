@@ -252,6 +252,14 @@ Resources:
                 sudo usermod -a -G docker ec2-user
                 sudo curl -Ls "https://github.com/docker/compose/releases/download/1.23.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                 sudo chmod +x /usr/local/bin/docker-compose
+                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+              mode: "000755"
+            /usr/local/bin/build-solution.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                sudo docker-compose -f /stage/wordpress/docker-compose.yml build
+                sudo docker-compose -f /stage/wordpress/docker-compose.yml up
               mode: "000755"
             /package/wordpress.zip:
               source: !Ref dockerPackageName
@@ -268,6 +276,9 @@ Resources:
               waitAfterCompletion: '0'
             040-unpack-package:
               command: "echo \"$(date) - 040-unpack-package\" | sudo tee --append /home/ec2-user/cfn-init.log && sudo unzip -o /package/wordpress.zip -d /stage/"
+              waitAfterCompletion: '0'
+            041-build-solution:
+              command: "echo \"$(date) - 041-build-solution\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/build-solution.sh"
               waitAfterCompletion: '0'
             999-signal-complete:
               command: !Join
