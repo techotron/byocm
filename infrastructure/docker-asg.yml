@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Docker ASG
+Description: byocm docker asg
 
 Parameters:
   keyName:
@@ -35,6 +35,15 @@ Parameters:
   dockerPackageName:
     Description: S3 Key for docker package
     Type: String
+
+  promKey:
+    Description: Access key for the prometheus IAM user
+    Type: String
+
+  promSecret:
+    Description: Secret key for the prometheus IAM user
+    Type: String
+    NoEcho: True
 
 Resources:
   ec2VMUpdateWaitHandle:
@@ -89,6 +98,50 @@ Resources:
       TargetType: instance
       VpcId:
         Fn::ImportValue: !Ref vpcStackName
+  loadBalancerTargetGroup8080:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /
+      HealthCheckPort: 8080
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 2
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Name: !Join [ "-", [ !Ref stackName, "tgt", "grp", "8080" ]]
+      Port: 8080
+      Protocol: HTTP
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "tgt", "grp", "8080" ]]
+        - Key: ProductComponents
+          Value: targetgroup
+      TargetType: instance
+      VpcId:
+        Fn::ImportValue: !Ref vpcStackName
+  loadBalancerTargetGroup9090:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /
+      HealthCheckPort: 9090
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 2
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Name: !Join [ "-", [ !Ref stackName, "tgt", "grp", "9090" ]]
+      Port: 9090
+      Protocol: HTTP
+      Tags:
+        - Key: Name
+          Value: !Join [ "-", [ !Ref stackName, "tgt", "grp", "9090" ]]
+        - Key: ProductComponents
+          Value: targetgroup
+      TargetType: instance
+      VpcId:
+        Fn::ImportValue: !Ref vpcStackName
 
 ############################ ALB Listener ######################################
   loadBalancerListener:
@@ -99,6 +152,24 @@ Resources:
         TargetGroupArn: !Ref loadBalancerTargetGroup
       LoadBalancerArn: !Ref loadBalancer
       Port: 80
+      Protocol: HTTP
+  loadBalancerListener8080:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref loadBalancerTargetGroup8080
+      LoadBalancerArn: !Ref loadBalancer
+      Port: 8080
+      Protocol: HTTP
+  loadBalancerListener9090:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref loadBalancerTargetGroup9090
+      LoadBalancerArn: !Ref loadBalancer
+      Port: 9090
       Protocol: HTTP
 
   ssmInstanceProfile:
@@ -222,7 +293,7 @@ Resources:
             /etc/cfn/hooks.d/cfn-auto-reloader.conf:
               content: !Sub |
                 [cfn-auto-reloader-hook]
-                triggers=post.update, post.remove, post.add
+                triggers=post.update
                 path=Resources.autoScalingGroup.Metadata.AWS::CloudFormation::Init
                 action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource autoScalingGroup --region ${AWS::Region}
                 runas=root
@@ -269,9 +340,9 @@ Resources:
             /usr/local/bin/build-solution.sh:
               content: !Sub |
                 #!/bin/bash
-                sudo docker-compose -f /stage/wordpress/docker-compose.yml stop
-                sudo docker-compose -f /stage/wordpress/docker-compose.yml build
-                sudo docker-compose -f /stage/wordpress/docker-compose.yml up
+                sudo docker-compose -f /stage/docker-compose.yml stop
+                sudo docker-compose -f /stage/docker-compose.yml build
+                sudo docker-compose -f /stage/docker-compose.yml up -d
               mode: "000755"
             /package/wordpress.zip:
               source: !Ref dockerPackageName
@@ -288,6 +359,9 @@ Resources:
             041-build-solution:
               command: "echo \"$(date) - 041-build-solution\" | sudo tee --append /home/ec2-user/cfn-init.log && /usr/local/bin/build-solution.sh"
               ignoreErrors: true
+              env:
+                PROM_ACCESS_KEY: !Ref promKey
+                PROM_SECRET_KEY: !Ref promSecret
             999-signal-complete:
               command: !Join
                 - ''
@@ -319,6 +393,8 @@ Resources:
       MaxSize: 2
       TargetGroupARNs:
         - !Ref loadBalancerTargetGroup
+        - !Ref loadBalancerTargetGroup8080
+        - !Ref loadBalancerTargetGroup9090
       Tags:
         - Key: Name
           Value: !Join [ "-", [ !Ref stackName, "asg" ]]
