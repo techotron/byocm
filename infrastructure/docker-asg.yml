@@ -71,7 +71,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 5
-      HealthCheckPath: /index.html
+      HealthCheckPath: /health/index.html
       HealthCheckPort: 80
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 2
@@ -194,6 +194,9 @@ Resources:
           - ''
           - - |
               #!/bin/bash -xe
+            - |
+            - 'echo '
+            - !Ref dockerPackageName
             - |
               # run init scripts
             - '/opt/aws/bin/cfn-init -v '
@@ -334,6 +337,17 @@ Resources:
       Cooldown: '60'
       AutoScalingGroupName: !Ref autoScalingGroup
       ScalingAdjustment: 1
+
+  siteRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: "eu.sbx.kube.intapp.com."
+      Comment: Record for byocm site
+      Name: "blog.eu.sbx.kube.intapp.com."
+      Type: CNAME
+      TTL: 60
+      ResourceRecords:
+        - Fn::GetAtt: [ loadBalancer, DNSName ]
 
 Outputs:
   loadBalancerCname:
