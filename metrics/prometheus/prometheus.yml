@@ -14,3 +14,8 @@ scrape_configs:
         # Use the instance ID as the instance label
       - source_labels: [__meta_ec2_instance_id]
         target_label: instance
+
+  - job_name: 'container'
+    scrape_interval: 120s
+    static_configs:
+         - targets: ['cadvisor:8080']
