@@ -27,15 +27,11 @@ services:
       MYSQL_RANDOM_ROOT_PASSWORD: '1'
   grafana:
     build: ./metrics/grafana
-    ports:
-      - 8080:3000
     depends_on:
       - prometheus
     restart: always
   prometheus:
     build: ./metrics/prometheus
-    ports:
-      - 9090:9090
     restart: always
     environment:
       AWS_ACCESS_KEY_ID: ${PROM_ACCESS_KEY}
