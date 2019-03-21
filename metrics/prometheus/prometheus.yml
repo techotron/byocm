@@ -16,6 +16,5 @@ scrape_configs:
         target_label: instance
 
   - job_name: 'container'
-    scrape_interval: 120s
     static_configs:
          - targets: ['cadvisor:8080']
