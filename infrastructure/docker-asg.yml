@@ -54,7 +54,7 @@ Resources:
     DependsOn: autoScalingGroup
     Properties:
       Handle: !Ref ec2VMUpdateWaitHandle
-      Timeout: '6000'
+      Timeout: '600'
 
 ############################ Load Balancer ######################################
   loadBalancer:
@@ -98,50 +98,6 @@ Resources:
       TargetType: instance
       VpcId:
         Fn::ImportValue: !Ref vpcStackName
-  loadBalancerTargetGroup8080:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 5
-      HealthCheckPath: /
-      HealthCheckPort: 8080
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 2
-      HealthyThresholdCount: 2
-      Matcher:
-        HttpCode: 200
-      Name: !Join [ "-", [ !Ref stackName, "tgt", "grp", "8080" ]]
-      Port: 8080
-      Protocol: HTTP
-      Tags:
-        - Key: Name
-          Value: !Join [ "-", [ !Ref stackName, "tgt", "grp", "8080" ]]
-        - Key: ProductComponents
-          Value: targetgroup
-      TargetType: instance
-      VpcId:
-        Fn::ImportValue: !Ref vpcStackName
-  loadBalancerTargetGroup9090:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 5
-      HealthCheckPath: /
-      HealthCheckPort: 9090
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 2
-      HealthyThresholdCount: 2
-      Matcher:
-        HttpCode: 200
-      Name: !Join [ "-", [ !Ref stackName, "tgt", "grp", "9090" ]]
-      Port: 9090
-      Protocol: HTTP
-      Tags:
-        - Key: Name
-          Value: !Join [ "-", [ !Ref stackName, "tgt", "grp", "9090" ]]
-        - Key: ProductComponents
-          Value: targetgroup
-      TargetType: instance
-      VpcId:
-        Fn::ImportValue: !Ref vpcStackName
 
 ############################ ALB Listener ######################################
   loadBalancerListener:
@@ -152,24 +108,6 @@ Resources:
         TargetGroupArn: !Ref loadBalancerTargetGroup
       LoadBalancerArn: !Ref loadBalancer
       Port: 80
-      Protocol: HTTP
-  loadBalancerListener8080:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref loadBalancerTargetGroup8080
-      LoadBalancerArn: !Ref loadBalancer
-      Port: 8080
-      Protocol: HTTP
-  loadBalancerListener9090:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref loadBalancerTargetGroup9090
-      LoadBalancerArn: !Ref loadBalancer
-      Port: 9090
       Protocol: HTTP
 
   ssmInstanceProfile:
@@ -425,8 +363,6 @@ Resources:
       MaxSize: 2
       TargetGroupARNs:
         - !Ref loadBalancerTargetGroup
-        - !Ref loadBalancerTargetGroup8080
-        - !Ref loadBalancerTargetGroup9090
       Tags:
         - Key: Name
           Value: !Join [ "-", [ !Ref stackName, "asg" ]]
