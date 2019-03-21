@@ -6,6 +6,8 @@ ADD node_exporter_dashboard.json /var/lib/grafana/dashboards/node_exporter_dashb
 ADD datasources.yml /etc/grafana/provisioning/datasources/prometheus.yaml
 ADD dashboards.yml /etc/grafana/provisioning/dashboards/all.yml
 
+ADD grafana.ini /etc/grafana/grafana.ini
+
 ENV GF_SECURITY_ADMIN_PASSWORD="password"
 
 EXPOSE 3000
