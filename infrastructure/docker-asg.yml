@@ -54,7 +54,7 @@ Resources:
     DependsOn: autoScalingGroup
     Properties:
       Handle: !Ref ec2VMUpdateWaitHandle
-      Timeout: '6000'
+      Timeout: '600'
 
 ############################ Load Balancer ######################################
   loadBalancer:
