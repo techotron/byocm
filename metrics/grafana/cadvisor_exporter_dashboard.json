@@ -290,7 +290,7 @@
           },
           "targets": [
             {
-              "expr": "time() - node_boot_time{instance=~\"$server:.*\"}",
+              "expr": "time() - node_boot_time_seconds{instance=~\".*\"}",
               "hide": false,
               "intervalFactor": 2,
               "legendFormat": "",
@@ -678,7 +678,7 @@
           },
           "targets": [
             {
-              "expr": "node_load1{instance=~\"$server:.*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu{instance=~\"$server:.*\"}))",
+              "expr": "node_load1{instance=~\".*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_guest_seconds_total{instance=~\".*\"}))",
               "intervalFactor": 2,
               "refId": "A",
               "step": 1800
@@ -976,7 +976,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "node_load1{instance=~\"$server:.*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu{instance=~\"$server:.*\"}))",
+              "expr": "node_load1{instance=~\".*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_guest_seconds_total{instance=~\".*\"}))",
               "intervalFactor": 2,
               "refId": "A",
               "step": 600
