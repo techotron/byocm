@@ -32,11 +32,8 @@ else
     aws cloudformation update-stack --stack-name $VPC_STACK_NAME --template-body file://./infrastructure/vpc.yml --profile $AWS_PROFILE --region $AWS_REGION &> command.output
     if grep -q "No updates are to be performed." command.output; then
         echo "[$(date)] - No updates are to be performed to $VPC_STACK_NAME"
-        if [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-vpc" and .StackStatus == "CREATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-create-complete --stack-name $VPC_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-vpc" and .StackStatus == "UPDATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-update-complete --stack-name $VPC_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        fi
+    elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-vpc" and .StackStatus != "CREATE_COMPLETE").StackStatus') ]; then
+        aws cloudformation wait stack-update-complete --stack-name $VPC_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
     fi
     rm command.output
 fi
@@ -50,11 +47,8 @@ else
     aws cloudformation update-stack --stack-name $IAM_STACK_NAME --template-body file://./infrastructure/iam.yml --profile $AWS_PROFILE --region $AWS_REGION --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM &> command.output
     if grep -q "No updates are to be performed." command.output; then
         echo "[$(date)] - No updates are to be performed to $IAM_STACK_NAME"
-        if [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-iam" and .StackStatus == "CREATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-create-complete --stack-name $IAM_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-iam" and .StackStatus == "UPDATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-update-complete --stack-name $IAM_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        fi
+    elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-iam" and .StackStatus != "CREATE_COMPLETE").StackStatus') ]; then
+        aws cloudformation wait stack-update-complete --stack-name $IAM_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
     fi
     rm command.output
 fi
@@ -86,11 +80,8 @@ else
         --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM &> command.output
     if grep -q "No updates are to be performed." command.output; then
         echo "[$(date)] - No updates are to be performed to $DOCKER_STACK_NAME"
-        if [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-docker" and .StackStatus == "CREATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-create-complete --stack-name $DOCKER_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-docker" and .StackStatus == "UPDATE_COMPLETE").StackStatus') ]; then
-            aws cloudformation wait stack-update-complete --stack-name $DOCKER_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
-        fi
+    elif [ $(aws cloudformation describe-stacks --region $AWS_REGION --profile $AWS_PROFILE | jq '.Stacks[] | select(.StackName == "byocm-docker" and .StackStatus != "CREATE_COMPLETE").StackStatus') ]; then
+        aws cloudformation wait stack-update-complete --stack-name $DOCKER_STACK_NAME --profile $AWS_PROFILE --region $AWS_REGION
     fi
     rm command.output
 fi
